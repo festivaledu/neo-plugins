@@ -24,8 +24,8 @@ namespace ConversationPlugin
                 Id = "conversation",
                 Name = "Conversation Plugin"
             };
-
-            Logger.Instance.Log(LogLevel.Fatal, "Jonas, du schaffst das!", true);
+            
+            Logger.Instance.Log(LogLevel.Fatal, "Josef, du schaffst das nicht!", true);
         }
 
         [EventListener(EventType.BeforeInput)]
