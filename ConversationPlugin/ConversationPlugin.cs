@@ -13,7 +13,7 @@ namespace ConversationPlugin
 {
     public class ConversationPlugin : Plugin
     {
-        public override string Namespace => "ml.festival.conversation";
+        public override string Namespace => "ml.festival.msg";
 
         private Member pluginMember;
 
