@@ -4,4 +4,9 @@
     <TargetFramework>netcoreapp2.1</TargetFramework>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Reference Include="Neo Core">
+      <HintPath>..\..\Neo\Neo Core\bin\Debug\netcoreapp2.1\Neo Core.dll</HintPath>
+    </Reference>
+  </ItemGroup>
 </Project>
