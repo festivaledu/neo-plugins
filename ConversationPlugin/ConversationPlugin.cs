@@ -81,9 +81,22 @@ namespace ConversationPlugin
                     Save();
 
                     // TODO: Send notification to target
+                    args.Event.Sender.ToTarget().SendPackage(new Package(PackageType.CustomEvent, new CustomEventArgs($"{Namespace}.update", conversations.FindAll(_ => _.Users.Contains(args.Event.Sender.InternalId)))));
+
+                    var targetUser = Pool.Server.Users.Find(_ => _.InternalId.Equals(target.Value));
+                    targetUser?.ToTarget().SendPackage(new Package(PackageType.CustomEvent, new CustomEventArgs($"{Namespace}.update", conversations.FindAll(_ => _.Users.Contains(targetUser.InternalId)))));
 
                     args.Event.Sender.MoveToChannel(channel);
                 }
+            }
+
+            if (args.Event.Sender.ActiveChannel.Attributes.ContainsKey("neo.channeltype") && args.Event.Sender.ActiveChannel.Attributes["neo.channeltype"].ToString() == "conversation") {
+                var conversation = conversations.Find(_ => _.Channel.InternalId.Equals(args.Event.Sender.ActiveChannel.InternalId));
+
+                args.Event.Sender.ToTarget().SendPackage(new Package(PackageType.CustomEvent, new CustomEventArgs($"{Namespace}.update", conversations.FindAll(_ => _.Users.Contains(args.Event.Sender.InternalId)))));
+                
+                var targetUser = Pool.Server.Users.Find(_ => _.InternalId.Equals(conversation.Users.Find(u => !u.Equals(args.Event.Sender.InternalId))));
+                targetUser?.ToTarget().SendPackage(new Package(PackageType.CustomEvent, new CustomEventArgs($"{Namespace}.update", conversations.FindAll(_ => _.Users.Contains(targetUser.InternalId)))));
             }
         }
 
