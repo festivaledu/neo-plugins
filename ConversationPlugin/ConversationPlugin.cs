@@ -137,6 +137,27 @@ namespace ConversationPlugin
 
                     sender.MoveToChannel(channel, true);
                 }
+            } else if (args.Name == $"{Namespace}.stop") {
+                var sender = Pool.Server.Users.Find(_ => _.InternalId.Equals(args.Sender));
+                var conversation = conversations.Find(_ => _.Channel.InternalId.ToString() == args.Content[0].ToString());
+
+                if (conversation == null) {
+                    return;
+                }
+
+                conversations.Remove(conversation);
+                Pool.Server.Channels.RemoveAll(_ => _.InternalId.Equals(conversation.Channel.InternalId));
+                Pool.Server.DataProvider.Save();
+
+                var targetUser = Pool.Server.Users.Find(user => user.InternalId.Equals(conversation.Users.Find(_ => !_.Equals(args.Sender))));
+
+                sender.ToTarget().SendPackage(new Package(PackageType.CustomEvent, new CustomEventArgs($"{Namespace}.update", InternalId, conversations.FindAll(_ => _.Users.Contains(sender.InternalId)))));
+                targetUser?.ToTarget().SendPackage(new Package(PackageType.CustomEvent, new CustomEventArgs($"{Namespace}.update", InternalId, conversations.FindAll(_ => _.Users.Contains(targetUser.InternalId)))));
+
+                sender.MoveToChannel(ChannelManager.GetMainChannel());
+                targetUser?.MoveToChannel(ChannelManager.GetMainChannel());
+
+                Save();
             }
         }
 
