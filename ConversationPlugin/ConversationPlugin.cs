@@ -22,9 +22,37 @@ namespace ConversationPlugin
         private Member pluginMember;
         private string databasePath;
 
+        private readonly string[] launchTexts = {
+            "It's a segment we are calling Conversation Street.",
+            "It's time for us to take a gentle stroll down Conversation Street.",
+            "It's time for us to check our mirrors and make a smooth left into Conversation Street.",
+            "It's time for us to make a gentle left into Conversation Street.",
+            "It is now time for us to engage reverse and park neatly in a marked space on Conversation Street.",
+            "It's time to drop it a cog and hook a left into Conversation Street.",
+            "Let's do that by popping some loose change in the ticket machine so we can park awhile on Conversation Street.",
+            "It's time now for us to enjoy a gentle stroll along the sunlit sidewalks of Conversation Street.",
+            "It's time now for us to take a gentle cruise down the velvety smoothness of Conversation Street.",
+            "It is time to set the sat-nav for destination ‚chat‘, as we head down Conversation Street.",
+            "It is now time for us to visit the headquarters of Chat & Co, who are, of course, based on Conversation Street.",
+            "It's time for us to take a stroll down the smooth sidewalks of Conversation Street.",
+            "It is time for us to lean on the lamppost of chat, in Conversation Street.",
+            "It is now time for us to peer down a manhole of chat on Conversation Street.",
+            "It's time for us to plant a sapling of chat on Conversation Street.",
+            "It is time for us to pop into the post office of chat on Conversation Street.",
+            "It's time to slide across an icy puddle of chat on Conversation Street.",
+            "It is now time for us to plant some daffodils of opinion on the roundabout of chat at the end of Conversation Street.",
+            "It is time to ring the doorbell of debate on the house of chat, located on Conversation Street.",
+            "It's time to order some doughnuts of debate from the Chat Café, on Conversation Street.",
+            "It’s time to step in a dog turd of chat on Conversation Street.",
+            "It is time to brim the tank of chat from the petrol station of debate on the corner of Conversation Street.",
+            "It is time for us to scrump an apple of chat from the orchid of intercourse which is on Conversation Street.",
+            "It is time for us to splash in some puddles of chat left by the drizzle of debate that falls on Conversation Street.",
+            "It’s time to say hello to the old lady of debate who sits in the bus shelter of chat on Conversation Street.",
+            "It is time to buy a four-pack of chat from the off-license of debate on Conversation Street."
+        };
+
         [EventListener(EventType.BeforeChannelJoin)]
         public override async Task OnBeforeChannelJoin(Before<JoinElementEventArgs<Channel>> args) {
-            Logger.Instance.Log(LogLevel.Debug, "Channel join by " + args.Event.Joiner.Identity.Id + " in " + args.Event.Element.Id);
             conversations.FindAll(_ => _.Users.Contains(args.Event.Joiner.InternalId)).ForEach(_ => _.Channel.ActiveMemberIds.Remove(args.Event.Joiner.InternalId));
 
             if (args.Event.Element.Attributes.ContainsKey("neo.origin") && args.Event.Element.Attributes["neo.origin"].ToString() == Namespace && args.Event.Element.Id.StartsWith("~conversation+")) {
@@ -38,18 +66,13 @@ namespace ConversationPlugin
                 }
 
                 if (conversation.Users.Contains(args.Event.Joiner.InternalId)) {
-                    Logger.Instance.Log(LogLevel.Debug, "Conversation found, moving to " + conversation.Channel.Id);
                     args.Event.Joiner.MoveToChannel(conversation.Channel, true);
-                } else {
-                    Logger.Instance.Log(LogLevel.Error, $"{args.Event.Joiner.Identity.Name} (@{args.Event.Joiner.Identity.Id}) is not part of this conversation.");
                 }
             }
         }
 
         [EventListener(EventType.BeforeInput)]
         public override async Task OnBeforeInput(Before<InputEventArgs> args) {
-            Logger.Instance.Log(LogLevel.Debug, "Input by " + args.Event.Sender.Identity.Id + " in " + args.Event.Sender.ActiveChannel.Id);
-
             if (args.Event.Sender.ActiveChannel.Attributes.ContainsKey("neo.channeltype") && args.Event.Sender.ActiveChannel.Attributes["neo.channeltype"].ToString() == "conversation") {
                 args.Cancel = true;
 
@@ -73,8 +96,6 @@ namespace ConversationPlugin
         [EventListener(EventType.Custom)]
         public override async Task OnCustom(CustomEventArgs args) {
             if (args.Name == $"{Namespace}.start") {
-                Logger.Instance.Log(LogLevel.Debug, "Start conversation with " + args.Content[0]);
-
                 var sender = Pool.Server.Users.Find(_ => _.InternalId.Equals(args.Sender));
                 var target = Pool.Server.Accounts.Find(_ => _.Identity.Id == args.Content[0].ToString())?.InternalId;
 
@@ -84,7 +105,6 @@ namespace ConversationPlugin
                     var conversation = conversations.Find(_ => _.Users.Contains(sender.InternalId) && _.Users.Contains(target.Value));
 
                     if (conversation != null) {
-                        Logger.Instance.Log(LogLevel.Debug, "Conversation found, moving to " + conversation.Channel.Id + " with " + conversation.Channel.ActiveMemberIds.Count + " active members");
                         sender.MoveToChannel(conversation.Channel, true);
                         return;
                     }
@@ -147,7 +167,7 @@ namespace ConversationPlugin
 
         [EventListener(EventType.ServerInitialized)]
         public override async Task OnServerInitialized(BaseServer server) {
-            Logger.Instance.Log(LogLevel.Info, "Conversation Street initialized.");
+            Logger.Instance.Log(LogLevel.Info, launchTexts[new Random().Next(launchTexts.Length)]);
 
             pluginMember = Authenticator.CreateVirtualMember(this);
             pluginMember.Identity = new Identity { Id = "conversation", Name = "Conversation Street" };
