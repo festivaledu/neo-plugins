@@ -126,7 +126,7 @@ namespace ConversationPlugin
             }
 
             if (!File.Exists(databasePath)) {
-                File.WriteAllText(databasePath, "");
+                File.WriteAllText(databasePath, "[]");
             } else {
                 conversations = JsonConvert.DeserializeObject<List<Conversation>>(File.ReadAllText(databasePath));
             }
