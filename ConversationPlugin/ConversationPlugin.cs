@@ -93,6 +93,9 @@ namespace ConversationPlugin
             if (args.Event.Sender.ActiveChannel.Attributes.ContainsKey("neo.channeltype") && args.Event.Sender.ActiveChannel.Attributes["neo.channeltype"].ToString() == "conversation") {
                 var conversation = conversations.Find(_ => _.Channel.InternalId.Equals(args.Event.Sender.ActiveChannel.InternalId));
                 
+                // Try manually saving the message
+                conversation.Channel.SaveMessage(MessagePackageContent.GetReceivedMessage(args.Event.Sender.InternalId, args.Event.Sender.Identity, args.Event.Input, conversation.Channel.InternalId));
+
                 args.Event.Sender.ToTarget().SendPackage(new Package(PackageType.CustomEvent, new CustomEventArgs($"{Namespace}.update", InternalId, conversations.FindAll(_ => _.Users.Contains(args.Event.Sender.InternalId)))));
                 
                 var targetUser = Pool.Server.Users.Find(_ => _.InternalId.Equals(conversation.Users.Find(u => !u.Equals(args.Event.Sender.InternalId))));
