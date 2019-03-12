@@ -24,7 +24,10 @@ namespace ConversationPlugin
 
         [EventListener(EventType.BeforeChannelJoin)]
         public override async Task OnBeforeChannelJoin(Before<JoinElementEventArgs<Channel>> args) {
-            if (args.Event.Element.Attributes.ContainsKey("neo.origin") && args.Event.Element.Attributes["neo.origin"].ToString() == Namespace && args.Event.Element.Id.StartsWith("~conversation-")) {
+            Logger.Instance.Log(LogLevel.Debug, "Channel join by " + args.Event.Joiner.Identity.Id + " in " + args.Event.Element.Id);
+            conversations.FindAll(_ => _.Users.Contains(args.Event.Joiner.InternalId)).ForEach(_ => _.Channel.ActiveMemberIds.Remove(args.Event.Joiner.InternalId));
+
+            if (args.Event.Element.Attributes.ContainsKey("neo.origin") && args.Event.Element.Attributes["neo.origin"].ToString() == Namespace && args.Event.Element.Id.StartsWith("~conversation+")) {
                 args.Cancel = true;
 
                 var conversation = conversations.Find(_ => _.Channel.InternalId.Equals(args.Event.Element.InternalId));
@@ -35,6 +38,7 @@ namespace ConversationPlugin
                 }
 
                 if (conversation.Users.Contains(args.Event.Joiner.InternalId)) {
+                    Logger.Instance.Log(LogLevel.Debug, "Conversation found, moving to " + conversation.Channel.Id);
                     args.Event.Joiner.MoveToChannel(conversation.Channel, true);
                 } else {
                     Logger.Instance.Log(LogLevel.Error, $"{args.Event.Joiner.Identity.Name} (@{args.Event.Joiner.Identity.Id}) is not part of this conversation.");
@@ -44,65 +48,23 @@ namespace ConversationPlugin
 
         [EventListener(EventType.BeforeInput)]
         public override async Task OnBeforeInput(Before<InputEventArgs> args) {
-            if (args.Event.Input.StartsWith("/pn ")) {
-                args.Cancel = true;
-
-                var target = Pool.Server.Users.Find(_ => _.Identity.Id == args.Event.Input.Split(' ')[1])?.InternalId ?? Pool.Server.Accounts.Find(_ => _.Identity.Id == args.Event.Input.Split(' ')[1])?.InternalId;
-
-                if (target == null) {
-                    args.Event.Sender.ToTarget().SendPackage(new Package(PackageType.Message, new MessagePackageContent(pluginMember.InternalId, pluginMember.Identity, "Der Benutzer konnte nicht gefunden werden.", DateTime.Now, "received", args.Event.Sender.ActiveChannel.InternalId)));
-                } else {
-                    var conversation = conversations.Find(_ => _.Users.Contains(args.Event.Sender.InternalId) && _.Users.Contains(target.Value));
-
-                    if (conversation != null) {
-                        args.Event.Sender.MoveToChannel(conversation.Channel, true);
-                        return;
-                    }
-
-                    var channel = new Channel {
-                        Attributes = new Dictionary<string, object> {
-                            { "neo.channeltype", "conversation" }
-                        },
-                        Id = $"~conversation+{args.Event.Sender.InternalId}+{target.Value}",
-                        Lifetime = Lifespan.Permanent,
-                        Limit = 2,
-                        Name = $"Konversation zwischen {args.Event.Sender.InternalId} und {target.Value}",
-                        MemberIds = new List<Guid> {
-                            args.Event.Sender.InternalId,
-                            target.Value
-                        },
-                        Password = ""
-                    };
-
-                    this.CreateChannel(pluginMember, channel);
-                    Pool.Server.DataProvider.Save();
-
-                    conversations.Add(new Conversation(args.Event.Sender.InternalId, target.Value, channel));
-                    Save();
-
-                    // TODO: Send notification to target
-                    args.Event.Sender.ToTarget().SendPackage(new Package(PackageType.CustomEvent, new CustomEventArgs($"{Namespace}.update", InternalId, conversations.FindAll(_ => _.Users.Contains(args.Event.Sender.InternalId)))));
-
-                    var targetUser = Pool.Server.Users.Find(_ => _.InternalId.Equals(target.Value));
-                    targetUser?.ToTarget().SendPackage(new Package(PackageType.CustomEvent, new CustomEventArgs($"{Namespace}.update", InternalId, conversations.FindAll(_ => _.Users.Contains(targetUser.InternalId)))));
-
-                    args.Event.Sender.MoveToChannel(channel);
-                }
-            }
+            Logger.Instance.Log(LogLevel.Debug, "Input by " + args.Event.Sender.Identity.Id + " in " + args.Event.Sender.ActiveChannel.Id);
 
             if (args.Event.Sender.ActiveChannel.Attributes.ContainsKey("neo.channeltype") && args.Event.Sender.ActiveChannel.Attributes["neo.channeltype"].ToString() == "conversation") {
-                var conversation = conversations.Find(_ => _.Channel.InternalId.Equals(args.Event.Sender.ActiveChannel.InternalId));
-                
-                // Try manually saving the message
-                conversation.Channel.SaveMessage(MessagePackageContent.GetReceivedMessage(args.Event.Sender.InternalId, args.Event.Sender.Identity, args.Event.Input, conversation.Channel.InternalId));
+                args.Cancel = true;
 
+                var conversation = conversations.Find(_ => _.Channel.InternalId.Equals(args.Event.Sender.ActiveChannel.InternalId));
+                var received = MessagePackageContent.GetReceivedMessage(args.Event.Sender.InternalId, args.Event.Sender.Identity, args.Event.Input, conversation.Channel.InternalId);
+                var sent = MessagePackageContent.GetSentMessage(args.Event.Sender.InternalId, args.Event.Sender.Identity, args.Event.Input, conversation.Channel.InternalId);
+
+                conversation.Channel.SaveMessage(received);
+
+                args.Event.Sender.ToTarget().SendPackage(new Package(PackageType.Message, sent));
                 args.Event.Sender.ToTarget().SendPackage(new Package(PackageType.CustomEvent, new CustomEventArgs($"{Namespace}.update", InternalId, conversations.FindAll(_ => _.Users.Contains(args.Event.Sender.InternalId)))));
                 
                 var targetUser = Pool.Server.Users.Find(_ => _.InternalId.Equals(conversation.Users.Find(u => !u.Equals(args.Event.Sender.InternalId))));
                 if (targetUser != null) {
-                    if (!targetUser.ActiveChannel.InternalId.Equals(conversation.Channel.InternalId)) {
-                        targetUser.ToTarget().SendPackage(new Package(PackageType.Message, MessagePackageContent.GetReceivedMessage(args.Event.Sender.InternalId, args.Event.Sender.Identity, args.Event.Input, conversation.Channel.InternalId)));
-                    }
+                    targetUser.ToTarget().SendPackage(new Package(PackageType.Message, received));
                     targetUser.ToTarget().SendPackage(new Package(PackageType.CustomEvent, new CustomEventArgs($"{Namespace}.update", InternalId, conversations.FindAll(_ => _.Users.Contains(targetUser.InternalId)))));
                 }
             }
@@ -111,7 +73,50 @@ namespace ConversationPlugin
         [EventListener(EventType.Custom)]
         public override async Task OnCustom(CustomEventArgs args) {
             if (args.Name == $"{Namespace}.start") {
-                Logger.Instance.Log(LogLevel.Debug, "Start event from: " + args.Sender + " (Content: " + args.Content[0] + ")");
+                Logger.Instance.Log(LogLevel.Debug, "Start conversation with " + args.Content[0]);
+
+                var sender = Pool.Server.Users.Find(_ => _.InternalId.Equals(args.Sender));
+                var target = Pool.Server.Accounts.Find(_ => _.Identity.Id == args.Content[0].ToString())?.InternalId;
+
+                if (target == null) {
+                    //sender.ToTarget().SendPackage(new Package(PackageType.Message, new MessagePackageContent(pluginMember.InternalId, pluginMember.Identity, "Der Benutzer konnte nicht gefunden werden.", DateTime.Now, "received", sender.ActiveChannel.InternalId)));
+                } else {
+                    var conversation = conversations.Find(_ => _.Users.Contains(sender.InternalId) && _.Users.Contains(target.Value));
+
+                    if (conversation != null) {
+                        Logger.Instance.Log(LogLevel.Debug, "Conversation found, moving to " + conversation.Channel.Id + " with " + conversation.Channel.ActiveMemberIds.Count + " active members");
+                        sender.MoveToChannel(conversation.Channel, true);
+                        return;
+                    }
+
+                    var channel = new Channel {
+                        Attributes = new Dictionary<string, object> {
+                            { "neo.channeltype", "conversation" }
+                        },
+                        Id = $"~conversation+{sender.InternalId}+{target.Value}",
+                        Lifetime = Lifespan.Permanent,
+                        Limit = 2,
+                        Name = $"Konversation zwischen {sender.InternalId} und {target.Value}",
+                        MemberIds = new List<Guid> {
+                            sender.InternalId,
+                            target.Value
+                        },
+                        Password = ""
+                    };
+
+                    this.CreateChannel(pluginMember, channel);
+                    Pool.Server.DataProvider.Save();
+
+                    conversations.Add(new Conversation(sender.InternalId, target.Value, channel));
+                    Save();
+                    
+                    sender.ToTarget().SendPackage(new Package(PackageType.CustomEvent, new CustomEventArgs($"{Namespace}.update", InternalId, conversations.FindAll(_ => _.Users.Contains(sender.InternalId)))));
+
+                    var targetUser = Pool.Server.Users.Find(_ => _.InternalId.Equals(target.Value));
+                    targetUser?.ToTarget().SendPackage(new Package(PackageType.CustomEvent, new CustomEventArgs($"{Namespace}.update", InternalId, conversations.FindAll(_ => _.Users.Contains(targetUser.InternalId)))));
+
+                    sender.MoveToChannel(channel, true);
+                }
             }
         }
 
