@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Threading.Tasks;
 using Neo.Core.Authentication;
 using Neo.Core.Communication;
 using Neo.Core.Communication.Packages;
@@ -17,7 +16,7 @@ namespace DemoPlugin
         private Member pluginMember;
 
         [EventListener(EventType.BeforeInput)]
-        public override async Task OnBeforeInput(Before<InputEventArgs> args) {
+        public override void OnBeforeInput(Before<InputEventArgs> args) {
             if (args.Event.Input.StartsWith("/sha ")) {
                 args.Cancel = true;
 
@@ -25,7 +24,7 @@ namespace DemoPlugin
             }
         }
         
-        public override async Task OnInitialize(string storagePath) {
+        public override void OnInitialize(string storagePath) {
             pluginMember = Authenticator.CreateVirtualMember(this);
             pluginMember.Identity = new Identity {
                 Id = "demo",

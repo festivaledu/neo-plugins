@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Threading.Tasks;
 using Neo.Core.Authentication;
 using Neo.Core.Communication;
 using Neo.Core.Communication.Packages;
@@ -52,7 +51,7 @@ namespace ConversationPlugin
         };
 
         [EventListener(EventType.BeforeChannelJoin)]
-        public override async Task OnBeforeChannelJoin(Before<JoinElementEventArgs<Channel>> args) {
+        public override void OnBeforeChannelJoin(Before<JoinElementEventArgs<Channel>> args) {
             conversations.FindAll(_ => _.Users.Contains(args.Event.Joiner.InternalId)).ForEach(_ => _.Channel.ActiveMemberIds.Remove(args.Event.Joiner.InternalId));
 
             if (args.Event.Element.Attributes.ContainsKey("neo.origin") && args.Event.Element.Attributes["neo.origin"].ToString() == Namespace && args.Event.Element.Id.StartsWith("~conversation+")) {
@@ -72,7 +71,7 @@ namespace ConversationPlugin
         }
 
         [EventListener(EventType.BeforeInput)]
-        public override async Task OnBeforeInput(Before<InputEventArgs> args) {
+        public override void OnBeforeInput(Before<InputEventArgs> args) {
             if (args.Event.Sender.ActiveChannel.Attributes.ContainsKey("neo.channeltype") && args.Event.Sender.ActiveChannel.Attributes["neo.channeltype"].ToString() == "conversation") {
                 args.Cancel = true;
 
@@ -94,7 +93,7 @@ namespace ConversationPlugin
         }
 
         [EventListener(EventType.Custom)]
-        public override async Task OnCustom(CustomEventArgs args) {
+        public override void OnCustom(CustomEventArgs args) {
             if (args.Name == $"{Namespace}.start") {
                 var sender = Pool.Server.Users.Find(_ => _.InternalId.Equals(args.Sender));
                 var target = Pool.Server.Accounts.Find(_ => _.Identity.Id == args.Content[0].ToString())?.InternalId;
@@ -161,13 +160,13 @@ namespace ConversationPlugin
             }
         }
 
-        public override async Task OnDispose() {
+        public override void OnDispose() {
             Save();
 
             Logger.Instance.Log(LogLevel.Info, "Conversation Street disposed.");
         }
 
-        public override async Task OnInitialize(string storagePath) {
+        public override void OnInitialize(string storagePath) {
             this.databasePath = Path.Combine(storagePath, @"conversations.json");
 
             if (!Directory.Exists(storagePath)) {
@@ -182,12 +181,12 @@ namespace ConversationPlugin
         }
 
         [EventListener(EventType.Login)]
-        public override async Task OnLogin(LoginEventArgs args) {
+        public override void OnLogin(LoginEventArgs args) {
             args.User.ToTarget().SendPackage(new Package(PackageType.CustomEvent, new CustomEventArgs($"{Namespace}.update", InternalId, conversations.FindAll(_ => _.Users.Contains(args.User.InternalId)))));
         }
 
         [EventListener(EventType.ServerInitialized)]
-        public override async Task OnServerInitialized(BaseServer server) {
+        public override void OnServerInitialized(BaseServer server) {
             Logger.Instance.Log(LogLevel.Info, launchTexts[new Random().Next(launchTexts.Length)]);
 
             pluginMember = Authenticator.CreateVirtualMember(this);
